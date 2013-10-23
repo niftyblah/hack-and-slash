@@ -1,7 +1,7 @@
 /*
 The iio Engine
 Version 1.2.2+
-Last Update 10/19/2013
+Last Update 10/16/2013
 
 PARAMETER CHANGE NOTICE:
 -the io.rmvFromGroup function now has the parameters (tag, obj, canvasIndex)
@@ -130,7 +130,7 @@ var iio = {};
       return img;
     }
     iio.isNumber=function(o){
-      return ! isNaN (o-0) && o !== null && o !== "" && o !== false && o !== true;
+      return ! isNaN (o-0) && o !== null && o !== "" && o !== false;
     }
     iio.isString=function(s){
       return typeof s == 'string' || s instanceof String;
@@ -757,6 +757,75 @@ var iio = {};
    }
 })();
 
+//Grid
+(function(){
+   //Definition
+   function Grid(){
+      this.Grid.apply(this, arguments);
+   }; iio.Grid=Grid;
+   iio.inherit(Grid, iio.Obj)
+
+   //Constructor
+   Grid.prototype._super = iio.Obj.prototype;
+   Grid.prototype.Grid = function(v,y,c,r,res,yRes){
+      if (typeof v.x!='undefined'){
+         this._super.Obj.call(this,v);
+         c=y;r=c;res=r;yRes=res;
+      } else this._super.Obj.call(this,v,y);
+      this.set(v,y,c,r,res,yRes);
+      this.resetCells();
+   }
+
+   //Functions
+   Grid.prototype.clone = function(){
+      return new Grid(this.pos.x, this.pos.y, this.endPos.x, this.endPos.y);
+   }
+   Grid.prototype.resetCells=function(){
+      this.cells = new Array(this.C);
+      for(var i=0; i<this.cells.length; i++)
+         this.cells[i] = new Array(this.R);
+      for(var c=0; c<this.cells[0].length; c++)
+         for(var r=0; r<this.cells.length; r++)
+            this.cells[r][c] = new Object();
+   }
+   Grid.prototype.getCellCenter = function(c,r, pixelPos){
+      if (typeof c.x !='undefined'){
+         if (r||false) return this.getCellCenter(this.getCellAt(c));
+         return new iio.Vec(this.pos.x+c.x*this.res.x+this.res.x/2, this.pos.y+c.y*this.res.y+this.res.y/2);
+      } else {
+         if (pixelPos||false) return this.getCellCenter(this.getCellAt(c,r));
+         return new iio.Vec(this.pos.x+c*this.res.x+this.res.x/2, this.pos.y+r*this.res.y+this.res.y/2);
+      }
+   }
+   Grid.prototype.getCellAt = function(pos,y){
+      var cell = new iio.Vec(Math.floor((pos.x-this.pos.x)/this.res.x), Math.floor((pos.y-this.pos.y)/this.res.y));
+      if (cell.x >= 0 && cell.x < this.C && cell.y >=0 && cell.y < this.R)
+         return cell;
+      return false;
+   }
+   Grid.prototype.set = function(v,y,c,r,res,yRes){
+      if (c.tagName=="CANVAS"){
+         this.C=parseInt(c.width/r,10)+1;
+         this.R=parseInt(c.height/(res||r),10)+1;
+         this.res = new iio.Vec(r,res||r)
+      } else {
+         this.R=r;
+         this.C=c;
+         this.res = new iio.Vec(res,yRes||res);
+      }
+      this.setPos(v,y);
+   }
+   Grid.prototype.forEachCell = function(fn){
+      var keepGoing=true;
+      for (var c=0;c<this.C;c++)
+         for(var r=0;r<this.R;r++){
+            keepGoing=fn(this.cells[c][r],c,r);
+            if (typeof keepGoing!='undefined'&&!keepGoing)
+               return [r,c];
+         }
+   }
+})();
+
 //Text
 (function () {
    //Definition
@@ -1206,75 +1275,6 @@ var iio = {};
    }
 })();
 
-//Grid
-(function(){
-   //Definition
-   function Grid(){
-      this.Grid.apply(this, arguments);
-   }; iio.Grid=Grid;
-   iio.inherit(Grid, iio.Shape)
-
-   //Constructor
-   Grid.prototype._super = iio.Obj.prototype;
-   Grid.prototype.Grid = function(v,y,c,r,res,yRes){
-      if (typeof v.x!='undefined'){
-         this._super.Obj.call(this,v);
-         c=y;r=c;res=r;yRes=res;
-      } else this._super.Obj.call(this,v,y);
-      this.set(v,y,c,r,res,yRes);
-      this.resetCells();
-   }
-
-   //Functions
-   Grid.prototype.clone = function(){
-      return new Grid(this.pos.x, this.pos.y, this.endPos.x, this.endPos.y);
-   }
-   Grid.prototype.resetCells=function(){
-      this.cells = new Array(this.C);
-      for(var i=0; i<this.cells.length; i++)
-         this.cells[i] = new Array(this.R);
-      for(var c=0; c<this.cells[0].length; c++)
-         for(var r=0; r<this.cells.length; r++)
-            this.cells[r][c] = new Object();
-   }
-   Grid.prototype.getCellCenter = function(c,r, pixelPos){
-      if (typeof c.x !='undefined'){
-         if (r||false) return this.getCellCenter(this.getCellAt(c));
-         return new iio.Vec(this.pos.x+c.x*this.res.x+this.res.x/2, this.pos.y+c.y*this.res.y+this.res.y/2);
-      } else {
-         if (pixelPos||false) return this.getCellCenter(this.getCellAt(c,r));
-         return new iio.Vec(this.pos.x+c*this.res.x+this.res.x/2, this.pos.y+r*this.res.y+this.res.y/2);
-      }
-   }
-   Grid.prototype.getCellAt = function(pos,y){
-      var cell = new iio.Vec(Math.floor((pos.x-this.pos.x)/this.res.x), Math.floor((pos.y-this.pos.y)/this.res.y));
-      if (cell.x >= 0 && cell.x < this.C && cell.y >=0 && cell.y < this.R)
-         return cell;
-      return false;
-   }
-   Grid.prototype.set = function(v,y,c,r,res,yRes){
-      if (c.tagName=="CANVAS"){
-         this.C=parseInt(c.width/r,10)+1;
-         this.R=parseInt(c.height/(res||r),10)+1;
-         this.res = new iio.Vec(r,res||r)
-      } else {
-         this.R=r;
-         this.C=c;
-         this.res = new iio.Vec(res,yRes||res);
-      }
-      this.setPos(v,y);
-   }
-   Grid.prototype.forEachCell = function(fn){
-      var keepGoing=true;
-      for (var c=0;c<this.C;c++)
-         for(var r=0;r<this.R;r++){
-            keepGoing=fn(this.cells[c][r],c,r);
-            if (typeof keepGoing!='undefined'&&!keepGoing)
-               return [r,c];
-         }
-   }
-})();
-
 //SpriteMap & Sprite
 (function (){
    //Definition
@@ -1328,6 +1328,17 @@ var iio = {};
                   s.addFrame(c*this.sW,p1*this.sH,this.sW,this.sH);
       } return s;
    }
+   SpriteMap.prototype.getSprites = function(row, num, offX, offY) {
+     if(typeof offX === 'undefined') offX = 0;
+     if(typeof offY === 'undefined') offY = 0;
+
+     var s = new iio.Sprite(this.srcImg);
+
+     for(var c=0; c<num; c++)
+        s.addFrame(c*this.sW+offX, row*this.sH+offY, this.sW, this.sH);
+
+     return s;
+   };
    SpriteMap.prototype.setSpriteRes = function(w,h){
       this.sH=w.y||h; this.sW=w.x||w; 
       this.C=this.srcImg.width/this.sW;
@@ -1506,7 +1517,7 @@ var iio = {};
          }.bind(this);
       } return this;
    }
-   function nextAnimFrame(reRender){
+   function nextAnimFrame(){
       function resetFrame(io){
          if (typeof io.onAnimComplete != 'undefined'){
             if (io.onAnimComplete())
@@ -1519,29 +1530,24 @@ var iio = {};
             resetFrame(this);
       } else if ( this.animFrame >= this.anims[this.animKey].srcs.length)
             resetFrame(this);
-      if (reRender) this.clearDraw();
-      //else this.redraw=true;
+      this.clearDraw();
       return this;
    }
    function setAnimFrame(i){
       this.animFrame=i;
       return this;
    }
-   function playAnim(tag,fps,io,draw,c,f){
-      //console.log(tag,fps,io,draw,c,f)
-      if (!iio.isNumber(tag)){
+   function playAnim(tag,fps,io,c,f){
+      if (!iio.isNumber(tag))
          this.setAnimKey(tag);
-         if (iio.isNumber(draw)) {c=draw; }//console.log('kek') }
-      }else{ f=c;c=draw;draw=io;io=fps;fps=tag; }
+      else{ f=c;c=io;io=fps;fps=tag; }
       if (!iio.isNumber(c)){
-         this.onAnimComplete=c;
+         this.onAnimComplete = c;
          c=f||0;
       } else this.onAnimComplete = f;
       if (typeof this.fsID != 'undefined')
          this.stopAnim();
-      //console.log(tag,fps,io,draw,c,f)
-      if (draw) io.setFramerate(fps,function(){this.nextAnimFrame()}.bind(this),this,io.ctxs[c||0]);
-      else io.setNoDrawFramerate(fps,function(){this.nextAnimFrame()}.bind(this),this,io.ctxs[c||0]);
+      io.setFramerate(fps,function(){this.nextAnimFrame()}.bind(this),this,io.ctxs[c||0]);
       return this;
    }
    function stopAnim(key,ctx){
@@ -1646,10 +1652,6 @@ var iio = {};
    iio.Grid.prototype.draw = function(ctx){
       ctx=ctx||this.ctx;
       iio.Graphics.prepStyledContext(ctx,this.styles);
-      if (!iio.Graphics.drawImage(ctx,this.img)){
-         ctx.drawImage(this.img, this.pos.x, this.pos.y, this.res.x*this.C, this.res.y*this.R);
-         ctx.restore();
-      }
       for (var r=1; r<this.R; r++)
          iio.Graphics.drawLine(ctx,this.pos.x,this.pos.y+r*this.res.y,this.pos.x+this.C*this.res.x,this.pos.y+r*this.res.y);
       for (var c=1; c<this.C; c++)
@@ -2228,33 +2230,6 @@ var iio = {};
 	            args[0].redraw=false;
 	         }
 	     } else args[1].setFramerate(fps,args[2],args[0]);
-      }, [obj,this,callback]);
-      return this;
-   }
-   AppManager.prototype.setNoDrawFramerate = function( fps, callback, obj, ctx ){
-      if (typeof callback!='undefined' && typeof callback.draw !='undefined'){
-         if (typeof ctx!='undefined')
-            var realCallback = ctx;
-         ctx=obj||this.ctxs[0];
-         obj=callback;
-         callback = realCallback||iio.emptyFn;
-         obj.ctx=ctx;
-      } else obj=obj||0;
-      if (iio.isNumber(obj))
-         obj=this.cnvs[obj];
-      if (typeof obj.lastTime == 'undefined')
-         obj.lastTime=0;
-      if (typeof ctx != 'undefined')
-         obj.ctx=ctx;
-      iio.requestTimeout(fps,obj.lastTime, function(dt,args){
-         if(!args[1].pause) {
-            args[0].lastTime=dt;
-            args[1].setNoDrawFramerate(fps,args[2],args[0]);
-            if (typeof args[0].update!='undefined')
-               args[0].update(dt);
-            if (typeof args[2]!='undefined')
-               args[2](dt);
-        } else args[1].setNoDrawFramerate(fps,args[2],args[0]);
       }, [obj,this,callback]);
       return this;
    }
