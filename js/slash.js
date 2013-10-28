@@ -9,13 +9,17 @@ Gogo = function(io) {
 		"attackSpeed": 1000,
 		"lastAttack": Date.now()
 	};
+	var Ogre = {};
 	var Enemies = [];
 	var IDLEY = 3, IDLEX = 3;
 	var SPEED = 1.5;
 
+	var WEPCVS = 0;
+
 	io.activateDebugger();
 	io.addCanvas(5); //weapon canvas to stop gay flickering
 
+	io.addGroup('Weapon', 1);
 	io.addGroup('Character', 1);
 	io.addGroup('Enemies', -1);
 
@@ -44,32 +48,32 @@ Gogo = function(io) {
 					this.playAnim("idle_right", IDLEX, io, true);
 					Character.last = 'right';
 				}).flipImage(false);
-				Weapon.playAnim('atk_right', 5, io, true, 1, function() {
-					this.playAnim("idle_right", IDLEX, io, true, 1);
+				Weapon.playAnim('atk_right', 5, io, true, WEPCVS, function() {
+					this.playAnim("idle_right", IDLEX, io, true, WEPCVS);
 				}).flipImage(false);
 			} else if(angle <= -pi/4 && angle >= -3*pi/4) { //up
 				Character.playAnim('atk_up', 5, io, true, function() {
 					this.playAnim("idle_up", IDLEX, io, true);
 					Character.last = 'up';
 				}).flipImage(false);
-				Weapon.playAnim('atk_up', 5, io, true, 1, function() {
-					this.playAnim("idle_up", IDLEX, io, true, 1);
+				Weapon.playAnim('atk_up', 5, io, true, WEPCVS, function() {
+					this.playAnim("idle_up", IDLEX, io, true, WEPCVS);
 				}).flipImage(false);
 			} else if(angle >= pi/4 && angle <= 3*pi/4) { //down
 				Character.playAnim('atk_down', 5, io, true, function() {
 					this.playAnim("idle_down", IDLEX, io, true);
 					Character.last = 'down';
 				}).flipImage(false);
-				Weapon.playAnim('atk_down', 5, io, true, 1, function() {
-					this.playAnim("idle_down", IDLEX, io, true, 1);
+				Weapon.playAnim('atk_down', 5, io, true, WEPCVS, function() {
+					this.playAnim("idle_down", IDLEX, io, true, WEPCVS);
 				}).flipImage(false);
 			} else { //left
 				Character.playAnim('atk_right', 5, io, true, function() {
 					this.playAnim("idle_right", IDLEX, io, true).flipImage(true);
 					Character.last = 'left';
 				}).flipImage(true);
-				Weapon.playAnim('atk_right', 5, io, true, 1, function() {
-					this.playAnim("idle_right", IDLEX, io, true, 1).flipImage(true);
+				Weapon.playAnim('atk_right', 5, io, true, WEPCVS, function() {
+					this.playAnim("idle_right", IDLEX, io, true, WEPCVS).flipImage(true);
 				}).flipImage(true);
 			}
 			Weapon.lastAttack = Date.now();
@@ -122,6 +126,12 @@ Gogo = function(io) {
 				sprite.addAnim(map.getSprite(getRow(anim.row), getRow(anim.row)+anim.length-1), name);
 			}
 
+			sprite.box = new iio.Rect(sprite.pos, info.boxX*scale||info.width*scale, info.boxY*scale||info.height*scale);
+			sprite.box.pos = sprite.pos;
+			//io.addObj(sprite.box);
+
+			sprite.uid = ID();
+
 			if(info.armour) sprite.armour = info.armour;
 
 			sprite.last = 'down';
@@ -136,28 +146,28 @@ Gogo = function(io) {
 		if(Input.left || Input.right || Input.up || Input.down) {
 			if(Input.left) {
 				if(Character.idle || Character.last != 'left') {
-					Weapon.playAnim('walk_right', 5, io, true, 1).flipImage(true);
+					Weapon.playAnim('walk_right', 5, io, true, WEPCVS).flipImage(true);
 					Character.playAnim('walk_right', 5, io, true).flipImage(true);
 				}
 				Character.last = 'left';
 				shiftView(SPEED,0);
 			} else if(Input.right) {
 				if(Character.idle || Character.last != 'right') {
-					Weapon.playAnim('walk_right', 5, io, true, 1).flipImage(false);
+					Weapon.playAnim('walk_right', 5, io, true, WEPCVS).flipImage(false);
 					Character.playAnim('walk_right', 5, io, true).flipImage(false);
 				}
 				Character.last = 'right';
 				shiftView(-SPEED,0);
 			} else if(Input.up) {
 				if(Character.idle || Character.last != 'up') {
-					Weapon.playAnim('walk_up', 5, io, true, 1).flipImage(false);
+					Weapon.playAnim('walk_up', 5, io, true, WEPCVS).flipImage(false);
 					Character.playAnim('walk_up', 5, io, true).flipImage(false);
 				}
 				Character.last = 'up';
 				shiftView(0,SPEED);
 			} else if(Input.down) {
 				if(Character.idle || Character.last != 'down') {
-					Weapon.playAnim('walk_down', 5, io, true, 1).flipImage(false);
+					Weapon.playAnim('walk_down', 5, io, true, WEPCVS).flipImage(false);
 					Character.playAnim('walk_down', 5, io, true).flipImage(false);
 				}
 				Character.last = 'down';
@@ -169,13 +179,13 @@ Gogo = function(io) {
 			if(Character.idle !== true) {
 				if(Character.last === 'up' || Character.last === 'down') {
 					Character.playAnim('idle_'+Character.last, IDLEX, io, true).flipImage(false);
-					Weapon.playAnim('idle_'+Character.last, IDLEX, io, true, 1).flipImage(false);
+					Weapon.playAnim('idle_'+Character.last, IDLEX, io, true, WEPCVS).flipImage(false);
 				} else if(Character.last === 'left') {
 					Character.playAnim('idle_right', IDLEX, io, true).flipImage(true);
-					Weapon.playAnim('idle_right', IDLEX, io, true, 1).flipImage(true);
+					Weapon.playAnim('idle_right', IDLEX, io, true, WEPCVS).flipImage(true);
 				} else {
 					Character.playAnim('idle_right', IDLEX, io, true).flipImage(false);
-					Weapon.playAnim('idle_right', IDLEX, io, true, 1).flipImage(false);
+					Weapon.playAnim('idle_right', IDLEX, io, true, WEPCVS).flipImage(false);
 				}
 			}
 
@@ -193,22 +203,24 @@ Gogo = function(io) {
 	buildSprite('sword2', io.canvas.center.x, io.canvas.center.y, function(a) {
 		extend(Weapon, a);
 		Weapon.loaded = true;
-		io.addObj(Weapon, 1, 1);
+		//io.addObj(Weapon, 1, 1);
+		io.addToGroup('Weapon', Weapon);
 		console.log("Weapon", Weapon);
 	});
 
 	buildSprite('ogre', io.canvas.center.x/2, io.canvas.center.y, function(a) {
 		Enemies.push(a);
-		io.addToGroup('Enemies', a);
+		extend(Ogre, a);
+		io.addToGroup('Enemies', Ogre);
 		console.log("Ogre", a);
-		a.playAnim('idle_down', IDLEX, io, false);
+		Ogre.playAnim('atk_right', IDLEX, io, false);
 	});
 
 	buildSprite('bat', io.canvas.center.x*1.5, io.canvas.center.y, function(a) {
 		Enemies.push(a);
 		io.addToGroup('Enemies', a);
 		console.log("Bat", a);
-		a.playAnim('idle_down', IDLEX, io, false);
+		a.playAnim('walk_right', IDLEX, io, false);
 	});
 
 	io.setFramerate(60, update);
@@ -216,8 +228,21 @@ Gogo = function(io) {
 
 };
 
-checkCollisions = function(a, b){
-   if (r1.left() < r2.right() && r1.right() > r2.left() && r1.top() < r2.bottom() && r1.bottom() > r2.top())
-      return true;
-   return false;
+checkCollisions = function(a, b) {
+	if (a.left() < b.right() && a.right() > b.left() && a.top() < b.bottom() && a.bottom() > b.top())
+		return true;
+	return false;
+};
+
+getObject = function(id, list) {
+	var element;
+	list.some(function(e, i, a) {
+		console.log(id,e.uid);
+		if(e.uid === id) {
+			console.log("match");
+			element = e;
+		}
+	});
+
+	return element;
 };

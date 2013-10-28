@@ -48,6 +48,8 @@ var Sprites = {
 
 	"clotharmor": {
 		"id": "clotharmor",
+		"boxX": 18,
+		"boxY": 23,
 		"armour": 1,
 		"width": 32,
 		"height": 32,
@@ -141,6 +143,9 @@ var Sprites = {
 
 	"sword2": {
 		"id": "sword2",
+		"boxX": 30,
+		"boxY": 30,
+		"damage": 5,
 		"width": 48,
 		"height": 48,
 		"animations": {
@@ -187,6 +192,8 @@ var Sprites = {
 
 	"ogre": {
 		"id": "ogre",
+		"boxX": 30,
+		"boxY": 36,
 		"width": 48,
 		"height": 48,
 		"animations": {
@@ -233,6 +240,8 @@ var Sprites = {
 
 	"bat": {
         "id": "bat",
+        "boxX": 25,
+        "boxY": 20,
         "width": 32,
         "height": 48,
         "animations": {
