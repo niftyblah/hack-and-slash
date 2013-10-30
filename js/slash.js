@@ -15,9 +15,13 @@ Gogo = function(io) {
 	var SPEED = 1.5;
 
 	var WEPCVS = 0;
+	var SCALE = 3;
+
+	var grid;
 
 	io.activateDebugger();
 	io.addCanvas(5); //weapon canvas to stop gay flickering
+	io.addCanvas(-50); //map layer
 
 	io.addGroup('Weapon', 1);
 	io.addGroup('Character', 1);
@@ -81,6 +85,30 @@ Gogo = function(io) {
 	});
 
 	shiftView = function(x, y) {
+		var quit = false;
+		Enemies.some(function(enemy) {
+			if(checkCollisions(Character.box, enemy.box, Character.last)) {
+				quit = true;
+			}
+		});
+
+		if(quit) return;
+
+		grid.pos.x += x;
+		grid.pos.y += y;
+
+		var MapGroups = io.cnvs[2].groups;
+		//console.log(MapGroups);
+
+		MapGroups.forEach(function(Group) {
+			//console.log(Group)
+			Group.objs.forEach(function(tile) {
+			//	console.log(tile.pos)
+				tile.pos.x += x;
+				tile.pos.y += y;
+			});
+		});
+		io.draw(2);
 		Enemies.forEach(function(enemy) {
 			enemy.pos.x += x;
 			enemy.pos.y += y;
@@ -108,9 +136,8 @@ Gogo = function(io) {
 	buildSprite = function(id, x, y, callback) {
 		var info = Sprites[id];
 		var anims = info.animations;
-		var scale = 3;
 
-		var map = new iio.SpriteMap('./img/'+scale+'/'+id+'.png', info.width*scale, info.height*scale, function() {
+		var map = new iio.SpriteMap('./img/'+SCALE+'/'+id+'.png', info.width*SCALE, info.height*SCALE, function() {
 			getRow = function(row) {
 				return row * (map.srcImg.width / map.sW);
 			};
@@ -126,7 +153,7 @@ Gogo = function(io) {
 				sprite.addAnim(map.getSprite(getRow(anim.row), getRow(anim.row)+anim.length-1), name);
 			}
 
-			sprite.box = new iio.Rect(sprite.pos, info.boxX*scale||info.width*scale, info.boxY*scale||info.height*scale);
+			sprite.box = new iio.Rect(sprite.pos, info.boxX*SCALE||info.width*SCALE, info.boxY*SCALE||info.height*SCALE);
 			sprite.box.pos = sprite.pos;
 			//io.addObj(sprite.box);
 
@@ -140,6 +167,61 @@ Gogo = function(io) {
 			if(callback) callback(sprite);
 		});
 	};
+
+	buildMap = function() {
+		function toGrid(tileNum, width, height) {
+			var x = 0, y = 0;
+
+			var getX = function(num, w) {
+				if(num === 0) { return 0; }
+				return (num % w === 0) ? w - 1 : (num % w) -1;
+			};
+
+			x = getX(tileNum + 1, width);
+			y = Math.floor(tileNum / height);
+
+			return { x: x, y: y };
+		}
+
+		function createTile(xy, type, w, h) {
+			var r = xy.x, c = xy.y;
+
+			grid.cells[r][c].type = type;
+
+			return new iio.SimpleRect(grid.getCellCenter(r, c), w, h);
+		}
+
+		var tiles = [];
+		var tile, pos, h = Level.height, w = Level.width, tw = Level.tilewidth, th = Level.tileheight;
+		var zIndex = Level.layers.length;
+		grid = new iio.Grid(io.canvas.width/2-0.5*w*tw, io.canvas.height/2-0.5*h*th, w, h, tw, th);
+
+		grid.setStrokeStyle('white');
+		grid.draw(io.context);
+		io.addObj(grid, 2);
+
+
+		var tilesheet = new iio.SpriteMap('./img/'+SCALE+'/tilesheet.png', 48, 48, function() {
+			Level.layers.forEach(function(layer) {
+		//	var layer = map.layers[0];
+				for(var ii=0, length=layer.data.length; ii<length; ii++) {
+					tile = layer.data[ii];
+
+					if(tile) { //ignore empty tiles
+						//console.log(tile);
+
+						var block = createTile(toGrid(ii, w, h), layer.name, w, h);
+						block.enableKinematics().createWithAnim(tilesheet.getSprite(tile-1, tile-1));
+
+						io.addToGroup(layer.name, block, zIndex, 2);
+					}
+				}
+
+				zIndex--;
+			});
+			console.log(grid);
+		});
+	}
 
 	update = function() {
 		if(!Character.loaded || !Weapon.loaded) return;
@@ -193,6 +275,8 @@ Gogo = function(io) {
 		}
 	};
 
+	buildMap();
+
 	buildSprite('clotharmor', io.canvas.center.x, io.canvas.center.y, function(a) {
 		extend(Character, a);
 		Character.loaded = true;
@@ -225,21 +309,36 @@ Gogo = function(io) {
 
 	io.setFramerate(60, update);
 	io.setFramerate(60, function(){}, 1);
+	//io.setFramerate(60, function(){}, 2);
 
 };
 
-checkCollisions = function(a, b) {
-	if (a.left() < b.right() && a.right() > b.left() && a.top() < b.bottom() && a.bottom() > b.top())
-		return true;
-	return false;
+checkCollisions = function(a, b, dir) {
+	var left = a.left(),
+		right = a.right(),
+		top = a.top(),
+		bottom = a.bottom();
+	var SPEED = 2.5;
+
+	switch(dir) {
+		case "left": left-=SPEED; break;
+		case "right": right+=SPEED; break;
+		case "up": top-=SPEED; break;
+		case "down": bottom+=SPEED; break;
+	}
+
+//	if (left < b.right() && right > b.left() && top < b.bottom() && bottom > b.top())
+//		return true;
+//	return false;
+
+return ((left >= b.left() && left <= b.right()) || (b.left() >= left && b.left() <= right)) &&
+	((top >= b.top() && top <= b.bottom()) || (b.top() >= top && b.top() <= bottom));
 };
 
 getObject = function(id, list) {
 	var element;
 	list.some(function(e, i, a) {
-		console.log(id,e.uid);
 		if(e.uid === id) {
-			console.log("match");
 			element = e;
 		}
 	});
