@@ -3,7 +3,11 @@ Gogo = function(io) {
 	var Skins = {};
 	var Character = {
 		"health": 100,
-		"armour": 0
+		"armour": 0,
+		"pos": {
+			"x": 1512,
+			"y": 2856
+		}
 	};
 	var Weapon = {
 		"attackSpeed": 1000,
@@ -12,15 +16,16 @@ Gogo = function(io) {
 	var Ogre = {};
 	var Enemies = [];
 	var IDLEY = 3, IDLEX = 3;
-	var SPEED = 1.5;
+	var SPEED = 2;
 
 	var WEPCVS = 0;
+	var TILECVS = 1;
 	var SCALE = 3;
 
 	var grid;
 
 	io.activateDebugger();
-	io.addCanvas(5); //weapon canvas to stop gay flickering
+	//io.addCanvas(5); //weapon canvas to stop gay flickering
 	io.addCanvas(-50); //map layer
 
 	io.addGroup('Weapon', 1);
@@ -35,7 +40,7 @@ Gogo = function(io) {
 		updateInput(event, false);
 	});
 
-	io.cnvs[1].addEventListener('mousedown', function(event) {
+	io.canvas.addEventListener('mousedown', function(event) {
 
 		if(Date.now() - Weapon.lastAttack >= Weapon.attackSpeed) {
 			var c = Character.pos.clone();
@@ -97,18 +102,21 @@ Gogo = function(io) {
 		grid.pos.x += x;
 		grid.pos.y += y;
 
-		var MapGroups = io.cnvs[2].groups;
-		//console.log(MapGroups);
-
-		MapGroups.forEach(function(Group) {
-			//console.log(Group)
-			Group.objs.forEach(function(tile) {
-			//	console.log(tile.pos)
-				tile.pos.x += x;
-				tile.pos.y += y;
+		grid.cells.forEach(function(row) {
+			row.forEach(function(cell) {
+				if(cell.tiles) {
+					//console.log(cell)
+					cell.tiles.forEach(function(tile) {
+						decideDraw(tile);
+						tile.pos.x += x;
+						tile.pos.y += y;
+					});
+				}
 			});
 		});
-		io.draw(2);
+
+		io.draw(TILECVS);
+
 		Enemies.forEach(function(enemy) {
 			enemy.pos.x += x;
 			enemy.pos.y += y;
@@ -178,50 +186,81 @@ Gogo = function(io) {
 			};
 
 			x = getX(tileNum + 1, width);
-			y = Math.floor(tileNum / height);
+			y = Math.floor(tileNum / width);
 
 			return { x: x, y: y };
 		}
 
-		function createTile(xy, type, w, h) {
-			var r = xy.x, c = xy.y;
-
-			grid.cells[r][c].type = type;
-
-			return new iio.SimpleRect(grid.getCellCenter(r, c), w, h);
-		}
-
 		var tiles = [];
 		var tile, pos, h = Level.height, w = Level.width, tw = Level.tilewidth, th = Level.tileheight;
-		var zIndex = Level.layers.length;
+		var zIndex = -2*Level.layers.length;
+
+		console.log(w, h, tw, th, io.canvas.width);
+
 		grid = new iio.Grid(io.canvas.width/2-0.5*w*tw, io.canvas.height/2-0.5*h*th, w, h, tw, th);
 
 		grid.setStrokeStyle('white');
 		grid.draw(io.context);
-		io.addObj(grid, 2);
+		io.addObj(grid, TILECVS);
 
-
-		var tilesheet = new iio.SpriteMap('./img/'+SCALE+'/tilesheet.png', 48, 48, function() {
+		var tilesheet = new iio.SpriteMap('./img/'+SCALE+'/tilesheet.png', tw, th, function() {
 			Level.layers.forEach(function(layer) {
-		//	var layer = map.layers[0];
+				//console.log(layer);
+
 				for(var ii=0, length=layer.data.length; ii<length; ii++) {
 					tile = layer.data[ii];
 
 					if(tile) { //ignore empty tiles
 						//console.log(tile);
+						var r = toGrid(ii, w, h).x;
+						var c = toGrid(ii, w, h).y;
 
-						var block = createTile(toGrid(ii, w, h), layer.name, w, h);
-						block.enableKinematics().createWithAnim(tilesheet.getSprite(tile-1, tile-1));
+						if(layer.name === 'collide') {
+							grid.cells[r][c].collide = true;
+						} else {
+							var block = new iio.SimpleRect(grid.getCellCenter(r, c), w, h);
+							block.enableKinematics().createWithAnim(tilesheet.getSprite(tile-1, tile-1));
+							block.tileType = layer.name;
+							block.zIndex = zIndex;
+							block.visible = false;
 
-						io.addToGroup(layer.name, block, zIndex, 2);
+							if(typeof grid.cells[r][c].tiles === 'undefined') grid.cells[r][c].tiles = [];
+							grid.cells[r][c].tiles.push(block);
+						}
 					}
 				}
 
-				zIndex--;
+				zIndex++;
+				io.draw(TILECVS)
 			});
+
+			grid.cells.forEach(function(row) {
+				row.forEach(function(cell) {
+					if(cell.tiles) {
+						//console.log(cell);
+						cell.tiles.forEach(function(tile) {
+							decideDraw(tile);
+						});
+					}
+				});
+			});
+			io.draw(TILECVS);
 			console.log(grid);
 		});
-	}
+	};
+
+	decideDraw = function(tile) {
+		console.log(tile.visible)
+		if(Math.abs(tile.pos.x-Character.pos.x) > 18*48/2 || Math.abs(tile.pos.y-Character.pos.y) > 12*48/2) {
+			if(tile.visible) io.rmvFromGroup(tile.tileType, tile, TILECVS);
+			tile.visible = false;
+		} else {
+			console.log('kek')
+			if(!tile.visible) { console.log('1'); io.addToGroup(tile.tileType, tile, tile.zIndex, TILECVS); }
+			tile.visible = true;
+		}
+		//console.log('1')
+	};
 
 	update = function() {
 		if(!Character.loaded || !Weapon.loaded) return;
@@ -308,9 +347,13 @@ Gogo = function(io) {
 	});
 
 	io.setFramerate(60, update);
-	io.setFramerate(60, function(){}, 1);
+	//io.setFramerate(60, function(){}, 1);
 	//io.setFramerate(60, function(){}, 2);
 
+};
+
+isObjEmpty = function(obj) {
+	return Object.keys(obj).length === 0;
 };
 
 checkCollisions = function(a, b, dir) {
