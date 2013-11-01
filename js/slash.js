@@ -13,7 +13,7 @@ Gogo = function(io) {
 		"attackSpeed": 1000,
 		"lastAttack": Date.now()
 	};
-	var Ogre = {};
+	//var Ogre = {};
 	var Enemies = [];
 	var IDLEY = 3, IDLEX = 3;
 	var SPEED = 2;
@@ -21,6 +21,8 @@ Gogo = function(io) {
 	var WEPCVS = 0;
 	var TILECVS = 1;
 	var SCALE = 3;
+
+	var SPAWN = { x:17*48, y:107*48 };
 
 	var grid;
 
@@ -197,7 +199,7 @@ Gogo = function(io) {
 
 		console.log(w, h, tw, th, io.canvas.width);
 
-		grid = new iio.Grid(io.canvas.width/2-0.5*w*tw, io.canvas.height/2-0.5*h*th, w, h, tw, th);
+		grid = new iio.Grid(io.canvas.width/2-SPAWN.x, io.canvas.height/2-SPAWN.y, w, h, tw, th);
 
 		grid.setStrokeStyle('white');
 		grid.draw(io.context);
@@ -217,6 +219,16 @@ Gogo = function(io) {
 
 						if(layer.name === 'collide') {
 							grid.cells[r][c].collide = true;
+						} else if(layer.name === 'entities') {
+							var entity = getEntity(tile-1961);
+							//console.log(entity)
+
+							buildSprite(entity, grid.getCellCenter(r,c).x, grid.getCellCenter(r,c).y, function(a) {
+								Enemies.push(a);
+								io.addToGroup('Enemies', a);
+								console.log("Mob", a);
+								a.playAnim('idle_down', IDLEY, io, false);
+							});
 						} else {
 							var block = new iio.SimpleRect(grid.getCellCenter(r, c), w, h);
 							block.enableKinematics().createWithAnim(tilesheet.getSprite(tile-1, tile-1));
@@ -240,23 +252,25 @@ Gogo = function(io) {
 						//console.log(cell);
 						cell.tiles.forEach(function(tile) {
 							decideDraw(tile);
+							io.draw(1);
 						});
 					}
 				});
 			});
 			io.draw(TILECVS);
 			console.log(grid);
+
 		});
 	};
 
 	decideDraw = function(tile) {
-		console.log(tile.visible)
+		
 		if(Math.abs(tile.pos.x-Character.pos.x) > 18*48/2 || Math.abs(tile.pos.y-Character.pos.y) > 12*48/2) {
+			//console.log(tile.pos)
 			if(tile.visible) io.rmvFromGroup(tile.tileType, tile, TILECVS);
 			tile.visible = false;
 		} else {
-			console.log('kek')
-			if(!tile.visible) { console.log('1'); io.addToGroup(tile.tileType, tile, tile.zIndex, TILECVS); }
+			if(!tile.visible) { io.addToGroup(tile.tileType, tile, tile.zIndex, TILECVS); }
 			tile.visible = true;
 		}
 		//console.log('1')
@@ -330,7 +344,7 @@ Gogo = function(io) {
 		io.addToGroup('Weapon', Weapon);
 		console.log("Weapon", Weapon);
 	});
-
+/*
 	buildSprite('ogre', io.canvas.center.x/2, io.canvas.center.y, function(a) {
 		Enemies.push(a);
 		extend(Ogre, a);
@@ -345,7 +359,7 @@ Gogo = function(io) {
 		console.log("Bat", a);
 		a.playAnim('walk_right', IDLEX, io, false);
 	});
-
+*/
 	io.setFramerate(60, update);
 	//io.setFramerate(60, function(){}, 1);
 	//io.setFramerate(60, function(){}, 2);
@@ -387,4 +401,13 @@ getObject = function(id, list) {
 	});
 
 	return element;
+};
+
+getEntity = function(num) {
+	var Entities = [];
+
+	Entities[2] = 'ogre';
+	Entities[13] = 'bat';
+
+	return Entities[num];
 };
