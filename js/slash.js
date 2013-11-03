@@ -22,7 +22,7 @@ Gogo = function(io) {
 	var TILECVS = 1;
 	var SCALE = 3;
 
-	var SPAWN = { x:17*48, y:107*48 };
+	var SPAWN = { x:17*16*SCALE, y:107*16*SCALE };
 
 	var grid;
 
@@ -43,7 +43,6 @@ Gogo = function(io) {
 	});
 
 	io.canvas.addEventListener('mousedown', function(event) {
-
 		if(Date.now() - Weapon.lastAttack >= Weapon.attackSpeed) {
 			var c = Character.pos.clone();
 			var v = io.getEventPosition(event);
@@ -94,9 +93,26 @@ Gogo = function(io) {
 	shiftView = function(x, y) {
 		var quit = false;
 		Enemies.some(function(enemy) {
-			if(checkCollisions(Character.box, enemy.box, Character.last)) {
+			if(checkCollisions(Character.next(-x,-y), enemy.box)) {
 				quit = true;
+				return true;
 			}
+		});
+
+		if(quit) return;
+
+		grid.cells.some(function(row) {
+			row.some(function(cell) {
+				if(cell.collide && cell.tiles) {
+					//console.log(cell)
+					if(checkCollisions(Character.next(-x,-y), cell.tiles[0])) {
+						quit = true;
+						return true;
+					}
+				}
+			});
+
+			if(quit) return;
 		});
 
 		if(quit) return;
@@ -168,6 +184,8 @@ Gogo = function(io) {
 			//io.addObj(sprite.box);
 
 			sprite.uid = ID();
+			sprite.type = id;
+			sprite.next = nextPosition;
 
 			if(info.armour) sprite.armour = info.armour;
 
@@ -243,7 +261,6 @@ Gogo = function(io) {
 				}
 
 				zIndex++;
-				io.draw(TILECVS)
 			});
 
 			grid.cells.forEach(function(row) {
@@ -252,7 +269,6 @@ Gogo = function(io) {
 						//console.log(cell);
 						cell.tiles.forEach(function(tile) {
 							decideDraw(tile);
-							io.draw(1);
 						});
 					}
 				});
@@ -366,31 +382,24 @@ Gogo = function(io) {
 
 };
 
+nextPosition = function(x,y) {
+	var box = this.box.clone();
+	box.pos.add(x,y);
+
+	//console.log(this.pos, box.pos)
+
+	return box;
+}
+
 isObjEmpty = function(obj) {
 	return Object.keys(obj).length === 0;
 };
 
-checkCollisions = function(a, b, dir) {
-	var left = a.left(),
-		right = a.right(),
-		top = a.top(),
-		bottom = a.bottom();
-	var SPEED = 2.5;
-
-	switch(dir) {
-		case "left": left-=SPEED; break;
-		case "right": right+=SPEED; break;
-		case "up": top-=SPEED; break;
-		case "down": bottom+=SPEED; break;
-	}
-
-//	if (left < b.right() && right > b.left() && top < b.bottom() && bottom > b.top())
-//		return true;
-//	return false;
-
-return ((left >= b.left() && left <= b.right()) || (b.left() >= left && b.left() <= right)) &&
-	((top >= b.top() && top <= b.bottom()) || (b.top() >= top && b.top() <= bottom));
-};
+checkCollisions = function(a, b) {
+	//console.log(a.pos)
+	return ((a.left() >= b.left() && a.left() <= b.right()) || (b.left() >= a.left() && b.left() <= a.right())) &&
+	((a.top() >= b.top() && a.top() <= b.bottom()) || (b.top() >= a.top() && b.top() <= a.bottom()));
+}
 
 getObject = function(id, list) {
 	var element;

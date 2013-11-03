@@ -48,8 +48,8 @@ var Sprites = {
 
 	"clotharmor": {
 		"id": "clotharmor",
-		"boxX": 18,
-		"boxY": 23,
+		"boxX": 15,
+		"boxY": 21,
 		"armour": 1,
 		"width": 32,
 		"height": 32,
