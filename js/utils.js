@@ -20,7 +20,19 @@ if(!Date.now) {
 }
 
 // https://gist.github.com/gordonbrander/2230317
-var ID = function() {
+ID = function() {
 	return '_' + Math.random().toString(36).substr(2, 9);
 };
+
+// create a 2d array of size Size
+get2DArray = function(size) {
+	size = size > 0 ? size : 0;
+	var arr = [];
+
+	while(size--) {
+		arr.push([]);
+	}
+
+	return arr;
+}
 

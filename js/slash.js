@@ -1,6 +1,5 @@
 Gogo = function(io) {
 	var Input = {};
-	var Skins = {};
 	var Character = {
 		"health": 100,
 		"armour": 0,
@@ -13,21 +12,25 @@ Gogo = function(io) {
 		"attackSpeed": 1000,
 		"lastAttack": Date.now()
 	};
-	//var Ogre = {};
 	var Enemies = [];
+	var Fighting = [];
 	var IDLEY = 3, IDLEX = 3;
 	var SPEED = 2;
 
 	var WEPCVS = 0;
 	var TILECVS = 1;
+
 	var SCALE = 3;
 
 	var SPAWN = { x:17*16*SCALE, y:107*16*SCALE };
 
 	var grid;
+	var collideGrid;
+	var blankGrid;
+
+	var tilesheet;
 
 	io.activateDebugger();
-	//io.addCanvas(5); //weapon canvas to stop gay flickering
 	io.addCanvas(-50); //map layer
 
 	io.addGroup('Weapon', 1);
@@ -43,6 +46,10 @@ Gogo = function(io) {
 	});
 
 	io.canvas.addEventListener('mousedown', function(event) {
+		//var e = io.getEventPosition(event);
+		//Character.findPath(e.x, e.y, true)
+		//drawPath(Character);
+
 		if(Date.now() - Weapon.lastAttack >= Weapon.attackSpeed) {
 			var c = Character.pos.clone();
 			var v = io.getEventPosition(event);
@@ -185,13 +192,22 @@ Gogo = function(io) {
 
 			sprite.uid = ID();
 			sprite.type = id;
-			sprite.next = nextPosition;
 
-			if(info.armour) sprite.armour = info.armour;
+			sprite.next = nextPosition; // returns the position of the sprite on the next update
+			sprite.findPath = findPath; // returns array of the steps to get to X,Y
 
+			// setup config based on different creaters
+			sprite.armour = info.armor||0;
+			sprite.health = info.health||100;
+			if(info.aggro) {
+				sprite.aggro = new iio.Rect(sprite.pos, info.aggro*16*SCALE*2, info.aggro*16*SCALE*2);
+				sprite.aggro.pos = sprite.pos;
+				//io.addObj(sprite.aggro);
+			}
+
+			sprite.combat = false;
 			sprite.last = 'down';
 
-			Skins[id] = sprite;
 			if(callback) callback(sprite);
 		});
 	};
@@ -215,7 +231,7 @@ Gogo = function(io) {
 		var tile, pos, h = Level.height, w = Level.width, tw = Level.tilewidth, th = Level.tileheight;
 		var zIndex = -2*Level.layers.length;
 
-		console.log(w, h, tw, th, io.canvas.width);
+		//console.log(w, h, tw, th, io.canvas.width);
 
 		grid = new iio.Grid(io.canvas.width/2-SPAWN.x, io.canvas.height/2-SPAWN.y, w, h, tw, th);
 
@@ -223,7 +239,7 @@ Gogo = function(io) {
 		grid.draw(io.context);
 		io.addObj(grid, TILECVS);
 
-		var tilesheet = new iio.SpriteMap('./img/'+SCALE+'/tilesheet.png', tw, th, function() {
+		tilesheet = new iio.SpriteMap('./img/'+SCALE+'/tilesheet.png', tw, th, function() {
 			Level.layers.forEach(function(layer) {
 				//console.log(layer);
 
@@ -244,7 +260,7 @@ Gogo = function(io) {
 							buildSprite(entity, grid.getCellCenter(r,c).x, grid.getCellCenter(r,c).y, function(a) {
 								Enemies.push(a);
 								io.addToGroup('Enemies', a);
-								console.log("Mob", a);
+								//console.log("Mob", a);
 								a.playAnim('idle_down', IDLEY, io, false);
 							});
 						} else {
@@ -263,16 +279,22 @@ Gogo = function(io) {
 				zIndex++;
 			});
 
-			grid.cells.forEach(function(row) {
-				row.forEach(function(cell) {
-					if(cell.tiles) {
-						//console.log(cell);
-						cell.tiles.forEach(function(tile) {
-							decideDraw(tile);
-						});
-					}
-				});
+			// init path grids
+			collideGrid = get2DArray(grid.R);
+			blankGrid = get2DArray(grid.R);
+
+			// assign path grid values, and do render culling for map tiles
+			grid.forEachCell(function(cell, c, r) {
+				collideGrid[r][c] = cell.collide ? 1 : 0;
+				blankGrid[r][c] = 0;
+
+				if(cell.tiles) { // culling
+					cell.tiles.forEach(function(tile) {
+						decideDraw(tile);
+					});
+				} 
 			});
+
 			io.draw(TILECVS);
 			console.log(grid);
 
@@ -293,7 +315,9 @@ Gogo = function(io) {
 	};
 
 	update = function() {
-		if(!Character.loaded || !Weapon.loaded) return;
+		if(!Character.loaded || !Weapon.loaded) return; // not loaded, go home
+
+		// handle all the movement and changing of animations of the character
 		if(Input.left || Input.right || Input.up || Input.down) {
 			if(Input.left) {
 				if(Character.idle || Character.last != 'left') {
@@ -342,6 +366,71 @@ Gogo = function(io) {
 
 			Character.idle = true;
 		}
+
+		// check if character is within aggro range of any mob, if so engage
+		Enemies.forEach(function(enemy) {
+			if(!enemy.combat && checkCollisions(Character.box, enemy.aggro)) {
+				console.log('fight')
+				enemy.combat = true;
+				Character.combat = true;
+				Fighting.push(enemy);
+				enemy.findPath(Character.pos.x, Character.pos.y, true)
+			}
+
+			if(enemy.combat) {
+				enemy.findPath(Character.pos.x, Character.pos.y, true)
+				drawPath(enemy);
+			}
+		});
+	};
+
+	findPath = function(x, y, cond) {
+		var a = Math.abs;
+		function getC(x) { return Math.floor((a(x)+a(grid.pos.x))/grid.res.x); }
+		function getR(y) { return Math.floor((a(y)+a(grid.pos.y))/grid.res.y); }
+
+		var start = [getC(this.pos.x), getR(this.pos.y)];
+		var end = [getC(x), getR(y)];
+
+		var path = AStar(collideGrid, start, end);
+
+		if(path.length === 0 && cond) {
+			path = findIncomplete(start, end);
+		}
+
+		//console.log(path);
+		this.path = path;
+	};
+
+	findIncomplete = function(start, end) {
+		var perfect = AStar(blankGrid, start, end);
+
+		var incomplete;
+		for(var i=perfect.length-1; i>0; i--) {
+			x = perfect[i][0];
+			y = perfect[i][1];
+
+			if(collideGrid[y][x] === 0) {
+				incomplete = AStar(collideGrid, start, [x,y]);
+				break;
+			}
+		}
+		return incomplete;
+	};
+
+	drawPath = function(entity) {
+		if(typeof entity.path === 'undefined') return;
+		var path = entity.path;
+
+		io.rmvFromGroup('path');
+
+		path.forEach(function(loc) {
+			//console.log(collideGrid[loc[1]][loc[0]])
+			var block = new iio.SimpleRect(grid.getCellCenter(loc[0], loc[1]), 48, 48);
+			block.enableKinematics().createWithAnim(tilesheet.getSprite(23, 23));
+			io.addToGroup('path', block);
+		});
+		
 	};
 
 	buildMap();
@@ -356,26 +445,10 @@ Gogo = function(io) {
 	buildSprite('sword2', io.canvas.center.x, io.canvas.center.y, function(a) {
 		extend(Weapon, a);
 		Weapon.loaded = true;
-		//io.addObj(Weapon, 1, 1);
 		io.addToGroup('Weapon', Weapon);
 		console.log("Weapon", Weapon);
 	});
-/*
-	buildSprite('ogre', io.canvas.center.x/2, io.canvas.center.y, function(a) {
-		Enemies.push(a);
-		extend(Ogre, a);
-		io.addToGroup('Enemies', Ogre);
-		console.log("Ogre", a);
-		Ogre.playAnim('atk_right', IDLEX, io, false);
-	});
 
-	buildSprite('bat', io.canvas.center.x*1.5, io.canvas.center.y, function(a) {
-		Enemies.push(a);
-		io.addToGroup('Enemies', a);
-		console.log("Bat", a);
-		a.playAnim('walk_right', IDLEX, io, false);
-	});
-*/
 	io.setFramerate(60, update);
 	//io.setFramerate(60, function(){}, 1);
 	//io.setFramerate(60, function(){}, 2);
@@ -385,9 +458,6 @@ Gogo = function(io) {
 nextPosition = function(x,y) {
 	var box = this.box.clone();
 	box.pos.add(x,y);
-
-	//console.log(this.pos, box.pos)
-
 	return box;
 }
 
@@ -396,7 +466,6 @@ isObjEmpty = function(obj) {
 };
 
 checkCollisions = function(a, b) {
-	//console.log(a.pos)
 	return ((a.left() >= b.left() && a.left() <= b.right()) || (b.left() >= a.left() && b.left() <= a.right())) &&
 	((a.top() >= b.top() && a.top() <= b.bottom()) || (b.top() >= a.top() && b.top() <= a.bottom()));
 }
@@ -420,3 +489,5 @@ getEntity = function(num) {
 
 	return Entities[num];
 };
+
+

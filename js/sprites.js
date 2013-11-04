@@ -196,6 +196,7 @@ var Sprites = {
 		"boxY": 36,
 		"width": 48,
 		"height": 48,
+		'aggro': 3,
 		"animations": {
 			"atk_right": {
 				"length": 3,
@@ -244,6 +245,7 @@ var Sprites = {
         "boxY": 20,
         "width": 32,
         "height": 48,
+        "aggro": 2,
         "animations": {
                 "atk_right": {
                         "length": 5,
