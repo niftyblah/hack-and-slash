@@ -197,6 +197,9 @@ var Sprites = {
 		"width": 48,
 		"height": 48,
 		'aggro': 3,
+		'armour': 0,
+		'damage': 5,
+		'health': 50,
 		"animations": {
 			"atk_right": {
 				"length": 3,
@@ -246,6 +249,9 @@ var Sprites = {
         "width": 32,
         "height": 48,
         "aggro": 2,
+        'armour': -2,
+		'damage': 3,
+		'health': 30,
         "animations": {
                 "atk_right": {
                         "length": 5,

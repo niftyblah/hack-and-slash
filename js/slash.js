@@ -4,8 +4,8 @@ Gogo = function(io) {
 		"health": 100,
 		"armour": 0,
 		"pos": {
-			"x": 1512,
-			"y": 2856
+			"x": 408,
+			"y": 264
 		}
 	};
 	var Weapon = {
@@ -23,6 +23,7 @@ Gogo = function(io) {
 	var SCALE = 3;
 
 	var SPAWN = { x:17*16*SCALE, y:107*16*SCALE };
+	var SHIFT = { x:0, y:0 };
 
 	var grid;
 	var collideGrid;
@@ -46,10 +47,6 @@ Gogo = function(io) {
 	});
 
 	io.canvas.addEventListener('mousedown', function(event) {
-		//var e = io.getEventPosition(event);
-		//Character.findPath(e.x, e.y, true)
-		//drawPath(Character);
-
 		if(Date.now() - Weapon.lastAttack >= Weapon.attackSpeed) {
 			var c = Character.pos.clone();
 			var v = io.getEventPosition(event);
@@ -93,6 +90,15 @@ Gogo = function(io) {
 					this.playAnim("idle_right", IDLEX, io, true, WEPCVS).flipImage(true);
 				}).flipImage(true);
 			}
+
+			Enemies.forEach(function(enemy) {
+				if(contains(enemy.box, v)) {
+					enemy.health -= (Weapon.damage - enemy.armour);
+					console.log(enemy.type+" "+enemy.uid+" hp: "+enemy.health);
+					if(enemy.health <= 0) enemy.mobDeath();
+				}
+			});
+
 			Weapon.lastAttack = Date.now();
 		} else console.log('cooldown');
 	});
@@ -126,6 +132,9 @@ Gogo = function(io) {
 
 		grid.pos.x += x;
 		grid.pos.y += y;
+
+		SHIFT.x += x;
+		SHIFT.y += y;
 
 		grid.cells.forEach(function(row) {
 			row.forEach(function(cell) {
@@ -195,18 +204,28 @@ Gogo = function(io) {
 
 			sprite.next = nextPosition; // returns the position of the sprite on the next update
 			sprite.findPath = findPath; // returns array of the steps to get to X,Y
+			sprite.move = move; // walks the sprite to the given location
+			sprite.mobAttack = mobAttack;
+			sprite.cancelAttack = cancelAttack;
+			sprite.mobDeath = mobDeath;
+			sprite.mobRespawn = mobRespawn;
 
 			// setup config based on different creaters
-			sprite.armour = info.armor||0;
+			sprite.armour = info.armour||0;
 			sprite.health = info.health||100;
 			if(info.aggro) {
 				sprite.aggro = new iio.Rect(sprite.pos, info.aggro*16*SCALE*2, info.aggro*16*SCALE*2);
 				sprite.aggro.pos = sprite.pos;
 				//io.addObj(sprite.aggro);
 			}
+			sprite.damage = info.damage||1;
 
 			sprite.combat = false;
 			sprite.last = 'down';
+			sprite.animating = false;
+			sprite.idle = true;
+			sprite.startLoc = sprite.pos.clone();
+			sprite.maxHealth = sprite.health;
 
 			if(callback) callback(sprite);
 		});
@@ -260,7 +279,7 @@ Gogo = function(io) {
 							buildSprite(entity, grid.getCellCenter(r,c).x, grid.getCellCenter(r,c).y, function(a) {
 								Enemies.push(a);
 								io.addToGroup('Enemies', a);
-								//console.log("Mob", a);
+								console.log("Mob", a);
 								a.playAnim('idle_down', IDLEY, io, false);
 							});
 						} else {
@@ -356,11 +375,11 @@ Gogo = function(io) {
 					Character.playAnim('idle_'+Character.last, IDLEX, io, true).flipImage(false);
 					Weapon.playAnim('idle_'+Character.last, IDLEX, io, true, WEPCVS).flipImage(false);
 				} else if(Character.last === 'left') {
-					Character.playAnim('idle_right', IDLEX, io, true).flipImage(true);
-					Weapon.playAnim('idle_right', IDLEX, io, true, WEPCVS).flipImage(true);
+					Character.playAnim('idle_right', IDLEY, io, true).flipImage(true);
+					Weapon.playAnim('idle_right', IDLEY, io, true, WEPCVS).flipImage(true);
 				} else {
-					Character.playAnim('idle_right', IDLEX, io, true).flipImage(false);
-					Weapon.playAnim('idle_right', IDLEX, io, true, WEPCVS).flipImage(false);
+					Character.playAnim('idle_right', IDLEY, io, true).flipImage(false);
+					Weapon.playAnim('idle_right', IDLEY, io, true, WEPCVS).flipImage(false);
 				}
 			}
 
@@ -379,9 +398,157 @@ Gogo = function(io) {
 
 			if(enemy.combat) {
 				enemy.findPath(Character.pos.x, Character.pos.y, true)
-				drawPath(enemy);
+				//drawPath(enemy);
+				enemy.move('atk');
 			}
+
+			enemy.lastLoc = enemy.pos.clone();
 		});
+	};
+
+	move = function(mode) {
+		if(this.path.length < 2) return;
+
+		var x1 = this.path[0][0];
+		var y1 = this.path[0][1];
+		var x2 = this.path[1][0];
+		var y2 = this.path[1][1];
+
+		var move = SPEED+4;
+
+		//console.log(this.idle);
+
+		if(x1 > x2) {
+			if(!checkCollisions(this.next(-move,0), Character.box)) {
+				this.cancelAttack();
+				if(this.idle || this.last !== 'left') {
+					this.playAnim('walk_right', 5, io, true).flipImage(true);
+					this.animating = true;
+					this.idle = false;
+				}
+				this.pos.x -= SPEED;
+			} else {
+				if(!this.idle) {
+					if(mode === 'atk') this.mobAttack();
+					this.playAnim(mode+'_right', IDLEY, io, true).flipImage(true);
+					this.idle = true;
+				}
+			}
+			//console.log('left')
+			this.last = 'left';
+		}
+			
+		else if(x1 < x2) {
+			if(!checkCollisions(this.next(move,0), Character.box)) {
+				this.cancelAttack();
+				if(this.idle || this.last !== 'right') {
+					this.playAnim('walk_right', 5, io, true).flipImage(false);
+					this.animating = true;
+					this.idle = false;
+				}
+				this.pos.x += SPEED;
+			} else {
+				if(!this.idle) {
+					if(mode === 'atk') this.mobAttack();
+					this.playAnim(mode+'_right', IDLEY, io, true).flipImage(false);
+					this.idle = true;
+				}
+			}
+			//console.log('right')
+			this.last = 'right';
+		}
+			
+		else if(y1 > y2) {
+			if(!checkCollisions(this.next(0,move), Character.box)) {
+				this.cancelAttack();
+				if(this.idle || this.last !== 'up') {
+					this.playAnim('walk_up', 5, io, true).flipImage(false);
+					this.animating = true;
+					this.idle = false;
+				}
+				this.pos.y -= SPEED;
+			} else {
+				if(!this.idle) {
+					if(mode === 'atk') this.mobAttack();
+					this.playAnim(mode+'_up', IDLEX, io, true).flipImage(false);
+					this.idle = true;
+				}
+			}
+			//console.log('up')
+			this.last = 'up';
+		}
+			
+		else if(y1 < y2) {
+			if(!checkCollisions(this.next(0,move), Character.box)) {
+				this.cancelAttack();
+				if(this.idle || this.last !== 'down') {
+					this.playAnim('walk_down', 5, io, true).flipImage(false);
+					this.animating = true;
+					this.idle = false;
+				}
+				this.pos.y += SPEED;
+			} else {
+				if(!this.idle) {
+					if(mode === 'atk') this.mobAttack();
+					this.playAnim(mode+'_down', IDLEX, io, true).flipImage(false);
+					this.idle = true;
+				}
+			}
+			//console.log('down')
+			this.last = 'down';
+		}
+	};
+
+	mobDeath = function() {
+		this.cancelAttack();
+		this.stopAnim();
+
+		removeObject(this.uid, Fighting);
+		removeObject(this.uid, Enemies);
+
+		io.rmvFromGroup('Enemies', this);
+
+		this.mobRespawn();
+	};
+
+	mobRespawn = function() {
+		var self = this;
+		setTimeout(function() {
+		/*	self.health = self.maxHealth;
+			self.pos = self.startLoc.clone();
+			self.pos.add(SHIFT.x, SHIFT.y);
+			self.last = 'down';
+			self.path = null;
+			self.combat = false;
+			console.log(clone(self));
+			Enemies.push(self);
+
+			io.addToGroup('Enemies', self);
+
+			console.log(self.uid+' has respawned');
+			console.log(self); */
+
+			buildSprite(self.type, self.startLoc.x+SHIFT.x, self.startLoc.y+SHIFT.y, function(a) {
+				Enemies.push(a);
+				io.addToGroup('Enemies', a);
+				console.log(a.uid+' has respawned');
+				a.playAnim('idle_down', IDLEY, io, false);
+				a.startLoc = self.startLoc.clone();
+			});
+		}, 3000);
+	}
+
+	mobAttack = function() {
+		var self = this;
+		this.interval = setInterval(function() {
+			Character.health -= (self.damage - Character.armour);
+			console.log('Character hp: ', Character.health);
+		}, 1000);
+	};
+
+	cancelAttack = function() {
+		if(this.interval) clearInterval(this.interval);
+		this.interval = null;
 	};
 
 	findPath = function(x, y, cond) {
@@ -468,17 +635,32 @@ isObjEmpty = function(obj) {
 checkCollisions = function(a, b) {
 	return ((a.left() >= b.left() && a.left() <= b.right()) || (b.left() >= a.left() && b.left() <= a.right())) &&
 	((a.top() >= b.top() && a.top() <= b.bottom()) || (b.top() >= a.top() && b.top() <= a.bottom()));
-}
+};
+
+contains = function(a, pos) {
+	var x = pos.x, y = pos.y;
+
+	return (x > a.left() && x < a.right() && y > a.top() && y < a.bottom());
+};
 
 getObject = function(id, list) {
 	var element;
 	list.some(function(e, i, a) {
 		if(e.uid === id) {
 			element = e;
+			return true;
 		}
 	});
 
 	return element;
+};
+
+removeObject = function(id, list) {
+	var i = list.length;
+	while(i--) {
+		if(list[i].uid === id)
+			return list.splice(i,1);
+	}
 };
 
 getEntity = function(num) {
@@ -489,5 +671,15 @@ getEntity = function(num) {
 
 	return Entities[num];
 };
+
+function clone(obj) {
+    if(obj == null || typeof(obj) != 'object')
+        return obj;    
+    var temp = new obj.constructor(); 
+    for(var key in obj)
+    	console.log(key)
+        temp[key] = clone(obj[key]);    
+    return temp;
+}
 
 
