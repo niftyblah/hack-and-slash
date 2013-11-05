@@ -51,6 +51,7 @@ Gogo = function(io) {
 		updateInput(event, false);
 	});
 
+	// Sword swing when the player left clicks
 	io.canvas.addEventListener('mousedown', function(event) {
 		if(Date.now() - Weapon.lastAttack >= Weapon.attackSpeed) {
 			var c = Character.pos.clone();
@@ -61,6 +62,7 @@ Gogo = function(io) {
 
 			var angle = Math.atan2(dy, dx);
 
+			// decide which direction to actually swing
 			var pi = Math.PI;
 			if(angle <= pi/4 && angle >= -pi/4) { //right
 				Character.playAnim('atk_right', 5, io, true, function() {
@@ -112,8 +114,12 @@ Gogo = function(io) {
 		}
 	});
 
+	// moves the game world around when the player moves the character
+	// (since the character doesn't actually move)
 	shiftView = function(x, y) {
 		var quit = false;
+
+		// if guy collides with an enemy don't shift
 		Enemies.some(function(enemy) {
 			if(checkCollisions(Character.next(-x,-y), enemy.box)) {
 				quit = true;
@@ -123,6 +129,7 @@ Gogo = function(io) {
 
 		if(quit) return;
 
+		// if guy collides with the map don't shift
 		grid.cells.some(function(row) {
 			row.some(function(cell) {
 				if(cell.collide && cell.tiles) {
@@ -138,6 +145,8 @@ Gogo = function(io) {
 		});
 
 		if(quit) return;
+
+		// shift everything
 
 		grid.pos.x += x;
 		grid.pos.y += y;
@@ -166,6 +175,7 @@ Gogo = function(io) {
 		});
 	};
 
+	// detect user input
 	updateInput = function(event, value) {
 		if(iio.keyCodeIs('left arrow', event) || iio.keyCodeIs('a', event))
 			Input.left = value;
@@ -188,6 +198,7 @@ Gogo = function(io) {
 		var info = Sprites[id];
 		var anims = info.animations;
 
+		// load the sprite sheet
 		var map = new iio.SpriteMap('./img/'+SCALE+'/'+id+'.png', info.width*SCALE, info.height*SCALE, function() {
 			getRow = function(row) {
 				return row * (map.srcImg.width / map.sW);
@@ -198,6 +209,7 @@ Gogo = function(io) {
 				.enableKinematics()
 				.setVel();
 
+			// loop through the animations and actually create them for the sprite
 			for(var anim in anims) {
 				var name = anim;
 				anim = anims[anim];
@@ -219,7 +231,7 @@ Gogo = function(io) {
 			sprite.mobDeath = mobDeath;
 			sprite.mobRespawn = mobRespawn;
 
-			// setup config based on different creaters
+			// setup config based on different creatures
 			sprite.armour = info.armour||0;
 			sprite.health = info.health||100;
 			if(info.aggro) {
@@ -246,6 +258,7 @@ Gogo = function(io) {
 		});
 	};
 
+	// builds the map based on the mapmaker exported data
 	buildMap = function() {
 		function toGrid(tileNum, width, height) {
 			var x = 0, y = 0;
@@ -265,23 +278,17 @@ Gogo = function(io) {
 		var tile, pos, h = Level.height, w = Level.width, tw = Level.tilewidth, th = Level.tileheight;
 		var zIndex = -2*Level.layers.length;
 
-		//console.log(w, h, tw, th, io.canvas.width);
-
 		grid = new iio.Grid(io.canvas.width/2-SPAWN.x, io.canvas.height/2-SPAWN.y, w, h, tw, th);
 
 		grid.setStrokeStyle('white');
-		//grid.draw(io.context);
 		//io.addObj(grid, TILECVS);
 
 		tilesheet = new iio.SpriteMap('./img/'+SCALE+'/tilesheet.png', tw, th, function() {
 			Level.layers.forEach(function(layer) {
-				//console.log(layer);
-
 				for(var ii=0, length=layer.data.length; ii<length; ii++) {
 					tile = layer.data[ii];
 
 					if(tile) { //ignore empty tiles
-						//console.log(tile);
 						var r = toGrid(ii, w, h).x;
 						var c = toGrid(ii, w, h).y;
 
@@ -289,7 +296,6 @@ Gogo = function(io) {
 							grid.cells[r][c].collide = true;
 						} else if(layer.name === 'entities') {
 							var entity = getEntity(tile-1961);
-							//console.log(entity)
 
 							buildSprite(entity, grid.getCellCenter(r,c).x, grid.getCellCenter(r,c).y, function(a) {
 								Enemies.push(a);
@@ -297,7 +303,7 @@ Gogo = function(io) {
 								//console.log("Mob", a);
 								a.playAnim('idle_down', IDLEY, io, false);
 							});
-						} else {
+						} else { // terrain
 							var block = new iio.SimpleRect(grid.getCellCenter(r, c), w, h);
 							block.enableKinematics().createWithAnim(tilesheet.getSprite(tile-1, tile-1));
 							block.tileType = layer.name;
@@ -335,19 +341,18 @@ Gogo = function(io) {
 		});
 	};
 
+	// decides if the tile gets rendered based on it's distance from the character
 	decideDraw = function(tile) {
-		
 		if(Math.abs(tile.pos.x-Character.pos.x) > 18*48/2 || Math.abs(tile.pos.y-Character.pos.y) > 12*48/2) {
-			//console.log(tile.pos)
 			if(tile.visible) io.rmvFromGroup(tile.tileType, tile, TILECVS);
 			tile.visible = false;
 		} else {
 			if(!tile.visible) { io.addToGroup(tile.tileType, tile, tile.zIndex, TILECVS); }
 			tile.visible = true;
 		}
-		//console.log('1')
 	};
 
+	// update function that gets called each game tick
 	update = function() {
 		if(!Character.loaded || !Weapon.loaded) return; // not loaded, go home
 
@@ -442,6 +447,7 @@ Gogo = function(io) {
 		}
 	};
 
+	// move the entity to the next location in it's path, either attack or just idle around
 	move = function(mode) {
 		if(this.path.length < 2) return;
 
@@ -452,9 +458,7 @@ Gogo = function(io) {
 
 		var move = SPEED+4;
 
-		//console.log(this.idle);
-
-		if(x1 > x2) {
+		if(x1 > x2) { // move left
 			if(!checkCollisions(this.next(-move,0), Character.box)) {
 				this.cancelAttack();
 				if(this.idle || this.last !== 'left') {
@@ -473,7 +477,7 @@ Gogo = function(io) {
 			this.last = 'left';
 		}
 			
-		else if(x1 < x2) {
+		else if(x1 < x2) { // move right
 			if(!checkCollisions(this.next(move,0), Character.box)) {
 				this.cancelAttack();
 				if(this.idle || this.last !== 'right') {
@@ -492,7 +496,7 @@ Gogo = function(io) {
 			this.last = 'right';
 		}
 			
-		else if(y1 > y2) {
+		else if(y1 > y2) { // move up
 			if(!checkCollisions(this.next(0,move), Character.box)) {
 				this.cancelAttack();
 				if(this.idle || this.last !== 'up') {
@@ -511,7 +515,7 @@ Gogo = function(io) {
 			this.last = 'up';
 		}
 			
-		else if(y1 < y2) {
+		else if(y1 < y2) { // move down
 			if(!checkCollisions(this.next(0,move), Character.box)) {
 				this.cancelAttack();
 				if(this.idle || this.last !== 'down') {
@@ -531,6 +535,7 @@ Gogo = function(io) {
 		}
 	};
 
+	// change either weapon or armour of the character
 	changeSkin = function(count) {
 		if(count >= Skins.length) return;
 
@@ -580,7 +585,7 @@ Gogo = function(io) {
 	// perform mob attack on player
 	mobAttack = function() {
 		var self = this;
-		this.interval = setInterval(function() {
+		this.interval = setInterval(function() { // one second swing timer
 			Character.health -= (self.damage - Character.armour);
 			console.log('Character hp: ', Character.health);
 			if(Character.health <= 0) {
@@ -622,6 +627,7 @@ Gogo = function(io) {
 	findIncomplete = function(start, end) {
 		var perfect = AStar(blankGrid, start, end);
 
+		//loops through the perfect path until it finds a path that it can complete
 		var incomplete;
 		for(var i=perfect.length-1; i>0; i--) {
 			x = perfect[i][0];
@@ -649,8 +655,9 @@ Gogo = function(io) {
 		});
 	};
 
-	buildMap();
+	buildMap(); // .. builds the map
 
+	// build the inital armour set and add it to the game
 	buildSprite('clotharmor', io.canvas.center.x, io.canvas.center.y, function(a) {
 		extend(Character, a);
 		Character.loaded = true;
@@ -658,6 +665,7 @@ Gogo = function(io) {
 		console.log("Character", Character);
 	});
 
+	// build the inital weapon and add it to the game
 	buildSprite('sword1', io.canvas.center.x, io.canvas.center.y, function(a) {
 		extend(Weapon, a);
 		Weapon.loaded = true;
@@ -665,6 +673,7 @@ Gogo = function(io) {
 		console.log("Weapon", Weapon);
 	});
 
+	// the following builds the sprites for the the Armour/Weapon upgrades
 	buildSprite('leatherarmor', io.canvas.center.x, io.canvas.center.y, function(a) {
 		Skins[1] = a;
 	});
