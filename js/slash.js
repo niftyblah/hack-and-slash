@@ -1,4 +1,5 @@
 Gogo = function(io) {
+	var Skins = [], skinCounter = 1;
 	var Input = {};
 	var Character = {
 		"health": 100,
@@ -6,7 +7,10 @@ Gogo = function(io) {
 		"pos": {
 			"x": 408,
 			"y": 264
-		}
+		}, 
+		'dead': false,
+		'regenning': false,
+		'kills': 0
 	};
 	var Weapon = {
 		"attackSpeed": 1000,
@@ -94,6 +98,7 @@ Gogo = function(io) {
 
 			Enemies.forEach(function(enemy) {
 				if(contains(enemy.box, v)) {
+					Weapon.damage = 50;
 					enemy.health -= (Weapon.damage - enemy.armour);
 					console.log(enemy.type+" "+enemy.uid+" hp: "+enemy.health);
 					if(enemy.health <= 0) enemy.mobDeath();
@@ -230,10 +235,8 @@ Gogo = function(io) {
 			sprite.idle = true;
 			sprite.startLoc = sprite.pos.clone();
 			sprite.maxHealth = sprite.health;
-			sprite.dead = false;
-			sprite.regenning = false;
 
-			if(id !== 'sword2') {
+			if(id !== 'sword2' && id !== 'sword1' && id !== 'morningstar' && id !== 'axe') {
 				sprite.healthFrame = new iio.Rect(sprite.pos.x, sprite.box.top()-5, sprite.maxHealth, 10);
 				sprite.healthFrame.setFillStyle('red')
 				io.addToGroup('Bars', sprite.healthFrame);
@@ -398,8 +401,9 @@ Gogo = function(io) {
 			Character.idle = true;
 		}
 
-		// check if character is within aggro range of any mob, if so engage
+		
 		Enemies.forEach(function(enemy) {
+			// check if character is within aggro range of any mob, if so engage
 			if(!enemy.combat && checkCollisions(Character.box, enemy.aggro)) {
 				console.log('fight')
 				enemy.combat = true;
@@ -408,6 +412,7 @@ Gogo = function(io) {
 				enemy.findPath(Character.pos.x, Character.pos.y, true)
 			}
 
+			// walk on over to the thing it wants to kill
 			if(enemy.combat) {
 				enemy.findPath(Character.pos.x, Character.pos.y, true)
 				//drawPath(enemy);
@@ -416,10 +421,12 @@ Gogo = function(io) {
 
 			enemy.lastLoc = enemy.pos.clone();
 
+			// update the mob's heatlh frame position and width
 			enemy.healthFrame.pos.x = enemy.pos.x;
 			enemy.healthFrame.pos.y = enemy.box.top()-3;
 		});
 
+		// out of combat regen functionality, regens 5 health per second until full health
 		if(Fighting.length === 0 && !Character.regenning && Character.health < Character.maxHealth) {
 			Character.regenning = true;
 			setTimeout(function() {
@@ -463,7 +470,6 @@ Gogo = function(io) {
 					this.idle = true;
 				}
 			}
-			//console.log('left')
 			this.last = 'left';
 		}
 			
@@ -483,7 +489,6 @@ Gogo = function(io) {
 					this.idle = true;
 				}
 			}
-			//console.log('right')
 			this.last = 'right';
 		}
 			
@@ -503,7 +508,6 @@ Gogo = function(io) {
 					this.idle = true;
 				}
 			}
-			//console.log('up')
 			this.last = 'up';
 		}
 			
@@ -523,14 +527,32 @@ Gogo = function(io) {
 					this.idle = true;
 				}
 			}
-			//console.log('down')
 			this.last = 'down';
 		}
 	};
 
+	changeSkin = function(count) {
+		if(count >= Skins.length) return;
+
+		var c = Character, s = Skins[count], w = Weapon;
+		if(count % 2 === 0) {
+			w.anims = s.anims;
+			w.damage = s.damage;
+			w.height = s.height;
+			w.width = s.width;
+		} else {
+			c.anims = s.anims;
+			c.armour = s.armour;
+		}
+	}
+
+	// remove dead monster from the game loop
 	mobDeath = function() {
 		this.cancelAttack();
 		this.stopAnim();
+
+		Character.kills++;
+		changeSkin(Character.kills);
 
 		removeObject(this.uid, Fighting);
 		removeObject(this.uid, Enemies);
@@ -541,6 +563,7 @@ Gogo = function(io) {
 		this.mobRespawn();
 	};
 
+	// create a new monster in place of the one that just died
 	mobRespawn = function() {
 		var self = this;
 		setTimeout(function() {
@@ -549,20 +572,21 @@ Gogo = function(io) {
 				io.addToGroup('Enemies', a);
 				console.log(a.uid+' has respawned');
 				a.playAnim('idle_down', IDLEY, io, false);
-				a.startLoc = self.startLoc.clone();
+				a.startLoc = self.startLoc.clone(); //respawn at original location
 			});
-		}, 9000);
+		}, 10000);
 	}
 
+	// perform mob attack on player
 	mobAttack = function() {
 		var self = this;
 		this.interval = setInterval(function() {
 			Character.health -= (self.damage - Character.armour);
 			console.log('Character hp: ', Character.health);
 			if(Character.health <= 0) {
-				if(!Character.dead) {
+				if(!Character.dead) { // stops chain alerts if being attacked by lots
 					Character.dead = true;
-					alert('Badluck, you died.');
+					alert('Badluck, you died.\nI\'m sure your spirit lives on.');
 					location.reload();
 				}
 			}
@@ -570,29 +594,31 @@ Gogo = function(io) {
 		}, 1000);
 	};
 
+	// if the creature is attacking, stop it
 	cancelAttack = function() {
 		if(this.interval) clearInterval(this.interval);
 		this.interval = null;
 	};
 
+	// find the shortest path the entity can use to get to position X,Y
 	findPath = function(x, y, cond) {
-		var a = Math.abs;
-		function getC(x) { return Math.floor((a(x)+a(grid.pos.x))/grid.res.x); }
-		function getR(y) { return Math.floor((a(y)+a(grid.pos.y))/grid.res.y); }
+		function getC(x) { return Math.floor((x-grid.pos.x)/grid.res.x); }
+		function getR(y) { return Math.floor((y-grid.pos.y)/grid.res.y); }
 
 		var start = [getC(this.pos.x), getR(this.pos.y)];
 		var end = [getC(x), getR(y)];
 
 		var path = AStar(collideGrid, start, end);
 
+		// no perfect path, maybe find imperfect one?
 		if(path.length === 0 && cond) {
 			path = findIncomplete(start, end);
 		}
 
-		//console.log(path);
 		this.path = path;
 	};
 
+	// path to get entity to the cloest position to a destination that it cannot reach
 	findIncomplete = function(start, end) {
 		var perfect = AStar(blankGrid, start, end);
 
@@ -609,6 +635,7 @@ Gogo = function(io) {
 		return incomplete;
 	};
 
+	// debug function that draws the path the enemy is going to walk to it's target
 	drawPath = function(entity) {
 		if(typeof entity.path === 'undefined') return;
 		var path = entity.path;
@@ -616,12 +643,10 @@ Gogo = function(io) {
 		io.rmvFromGroup('path');
 
 		path.forEach(function(loc) {
-			//console.log(collideGrid[loc[1]][loc[0]])
 			var block = new iio.SimpleRect(grid.getCellCenter(loc[0], loc[1]), 48, 48);
 			block.enableKinematics().createWithAnim(tilesheet.getSprite(23, 23));
 			io.addToGroup('path', block);
 		});
-		
 	};
 
 	buildMap();
@@ -633,19 +658,42 @@ Gogo = function(io) {
 		console.log("Character", Character);
 	});
 
-	buildSprite('sword2', io.canvas.center.x, io.canvas.center.y, function(a) {
+	buildSprite('sword1', io.canvas.center.x, io.canvas.center.y, function(a) {
 		extend(Weapon, a);
 		Weapon.loaded = true;
 		io.addToGroup('Weapon', Weapon);
 		console.log("Weapon", Weapon);
 	});
 
-	io.setFramerate(60, update);
-	//io.setFramerate(60, function(){}, 1);
-	//io.setFramerate(60, function(){}, 2);
+	buildSprite('leatherarmor', io.canvas.center.x, io.canvas.center.y, function(a) {
+		Skins[1] = a;
+	});
+
+	buildSprite('mailarmor', io.canvas.center.x, io.canvas.center.y, function(a) {
+		Skins[3] = a;
+	});
+
+	buildSprite('platearmor', io.canvas.center.x, io.canvas.center.y, function(a) {
+		Skins[5] = a;
+	});
+
+	buildSprite('axe', io.canvas.center.x, io.canvas.center.y, function(a) {
+		Skins[2] = a;
+	});
+
+	buildSprite('morningstar', io.canvas.center.x, io.canvas.center.y, function(a) {
+		Skins[4] = a;
+	});
+
+	buildSprite('sword2', io.canvas.center.x, io.canvas.center.y, function(a) {
+		Skins[6] = a;
+	});
+
+	io.setFramerate(60, update); //game update loop
 
 };
 
+// returns the bounding box for where the entity will be on the next game tick
 nextPosition = function(x,y) {
 	var box = this.box.clone();
 	box.pos.add(x,y);
@@ -656,17 +704,20 @@ isObjEmpty = function(obj) {
 	return Object.keys(obj).length === 0;
 };
 
+// check if A and B intersect at any point
 checkCollisions = function(a, b) {
 	return ((a.left() >= b.left() && a.left() <= b.right()) || (b.left() >= a.left() && b.left() <= a.right())) &&
 	((a.top() >= b.top() && a.top() <= b.bottom()) || (b.top() >= a.top() && b.top() <= a.bottom()));
 };
 
+// check if A contains the point
 contains = function(a, pos) {
 	var x = pos.x, y = pos.y;
 
 	return (x > a.left() && x < a.right() && y > a.top() && y < a.bottom());
 };
 
+// returns the object with the given ID
 getObject = function(id, list) {
 	var element;
 	list.some(function(e, i, a) {
@@ -679,6 +730,7 @@ getObject = function(id, list) {
 	return element;
 };
 
+// removes the object with the given ID from the list
 removeObject = function(id, list) {
 	var i = list.length;
 	while(i--) {
@@ -687,6 +739,7 @@ removeObject = function(id, list) {
 	}
 };
 
+// find which entity the tile actually is
 getEntity = function(num) {
 	var Entities = [];
 
