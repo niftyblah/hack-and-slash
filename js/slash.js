@@ -51,6 +51,13 @@ Gogo = function(io) {
 		updateInput(event, false);
 	});
 
+	window.addEventListener("blur", function(event) {
+		Input.down = false;
+		Input.up = false;
+		Input.right = false;
+		Input.left = false;
+	});
+
 	// Sword swing when the player left clicks
 	io.canvas.addEventListener('mousedown', function(event) {
 		if(Date.now() - Weapon.lastAttack >= Weapon.attackSpeed) {
@@ -100,7 +107,7 @@ Gogo = function(io) {
 
 			Enemies.forEach(function(enemy) {
 				if(contains(enemy.box, v)) {
-					Weapon.damage = 50;
+					//Weapon.damage = 50;
 					enemy.health -= (Weapon.damage - enemy.armour);
 					console.log(enemy.type+" "+enemy.uid+" hp: "+enemy.health);
 					if(enemy.health <= 0) enemy.mobDeath();
@@ -111,6 +118,7 @@ Gogo = function(io) {
 			});
 
 			Weapon.lastAttack = Date.now();
+			Character.idle = true;
 		}
 	});
 
@@ -248,7 +256,8 @@ Gogo = function(io) {
 			sprite.startLoc = sprite.pos.clone();
 			sprite.maxHealth = sprite.health;
 
-			if(id !== 'sword2' && id !== 'sword1' && id !== 'morningstar' && id !== 'axe') {
+			if(id !== 'sword2' && id !== 'sword1' && id !== 'morningstar' && id !== 'axe' &&
+				id !== 'mailarmor' && id !== 'platearmor' && id !== 'leatherarmor') {
 				sprite.healthFrame = new iio.Rect(sprite.pos.x, sprite.box.top()-5, sprite.maxHealth, 10);
 				sprite.healthFrame.setFillStyle('red')
 				io.addToGroup('Bars', sprite.healthFrame);
@@ -358,37 +367,39 @@ Gogo = function(io) {
 
 		// handle all the movement and changing of animations of the character
 		if(Input.left || Input.right || Input.up || Input.down) {
-			if(Input.left) {
-				if(Character.idle || Character.last != 'left') {
-					Weapon.playAnim('walk_right', 5, io, true, WEPCVS).flipImage(true);
-					Character.playAnim('walk_right', 5, io, true).flipImage(true);
+			if(Date.now() - Weapon.lastAttack >= Weapon.attackSpeed) {
+				if(Input.left) {
+					if(Character.idle || Character.last != 'left') {
+						Weapon.playAnim('walk_right', 5, io, true, WEPCVS).flipImage(true);
+						Character.playAnim('walk_right', 5, io, true).flipImage(true);
+					}
+					Character.last = 'left';
+					shiftView(SPEED,0);
+				} else if(Input.right) {
+					if(Character.idle || Character.last != 'right') {
+						Weapon.playAnim('walk_right', 5, io, true, WEPCVS).flipImage(false);
+						Character.playAnim('walk_right', 5, io, true).flipImage(false);
+					}
+					Character.last = 'right';
+					shiftView(-SPEED,0);
+				} else if(Input.up) {
+					if(Character.idle || Character.last != 'up') {
+						Weapon.playAnim('walk_up', 5, io, true, WEPCVS).flipImage(false);
+						Character.playAnim('walk_up', 5, io, true).flipImage(false);
+					}
+					Character.last = 'up';
+					shiftView(0,SPEED);
+				} else if(Input.down) {
+					if(Character.idle || Character.last != 'down') {
+						Weapon.playAnim('walk_down', 5, io, true, WEPCVS).flipImage(false);
+						Character.playAnim('walk_down', 5, io, true).flipImage(false);
+					}
+					Character.last = 'down';
+					shiftView(0,-SPEED);
 				}
-				Character.last = 'left';
-				shiftView(SPEED,0);
-			} else if(Input.right) {
-				if(Character.idle || Character.last != 'right') {
-					Weapon.playAnim('walk_right', 5, io, true, WEPCVS).flipImage(false);
-					Character.playAnim('walk_right', 5, io, true).flipImage(false);
-				}
-				Character.last = 'right';
-				shiftView(-SPEED,0);
-			} else if(Input.up) {
-				if(Character.idle || Character.last != 'up') {
-					Weapon.playAnim('walk_up', 5, io, true, WEPCVS).flipImage(false);
-					Character.playAnim('walk_up', 5, io, true).flipImage(false);
-				}
-				Character.last = 'up';
-				shiftView(0,SPEED);
-			} else if(Input.down) {
-				if(Character.idle || Character.last != 'down') {
-					Weapon.playAnim('walk_down', 5, io, true, WEPCVS).flipImage(false);
-					Character.playAnim('walk_down', 5, io, true).flipImage(false);
-				}
-				Character.last = 'down';
-				shiftView(0,-SPEED);
-			}
 
-			Character.idle = false;
+				Character.idle = false;
+			}
 		} else {
 			if(Character.idle !== true) {
 				if(Character.last === 'up' || Character.last === 'down') {
@@ -405,7 +416,6 @@ Gogo = function(io) {
 
 			Character.idle = true;
 		}
-
 		
 		Enemies.forEach(function(enemy) {
 			// check if character is within aggro range of any mob, if so engage
@@ -442,7 +452,7 @@ Gogo = function(io) {
 
 				Character.regenning = false;
 				Character.healthFrame.width = Character.health;
-				console.log(Character.health);
+				console.log('regenning', Character.health);
 			}, 1000);
 		}
 	};
@@ -565,11 +575,14 @@ Gogo = function(io) {
 		io.rmvFromGroup('Enemies', this);
 		io.rmvFromGroup('Bars', this.healthFrame);
 
-		this.mobRespawn();
+		if(this.type === 'boss') {
+			alert('You won the game.');
+			this.mobRespawn(20);
+		} else this.mobRespawn(10);
 	};
 
 	// create a new monster in place of the one that just died
-	mobRespawn = function() {
+	mobRespawn = function(time) {
 		var self = this;
 		setTimeout(function() {
 			buildSprite(self.type, self.startLoc.x+SHIFT.x, self.startLoc.y+SHIFT.y, function(a) {
@@ -579,7 +592,7 @@ Gogo = function(io) {
 				a.playAnim('idle_down', IDLEY, io, false);
 				a.startLoc = self.startLoc.clone(); //respawn at original location
 			});
-		}, 10000);
+		}, time*1000);
 	}
 
 	// perform mob attack on player
@@ -752,6 +765,7 @@ removeObject = function(id, list) {
 getEntity = function(num) {
 	var Entities = [];
 
+	Entities[0] = 'boss';
 	Entities[2] = 'ogre';
 	Entities[13] = 'bat';
 
