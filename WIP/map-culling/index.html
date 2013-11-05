@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+<head>
+	<title>Hack and Slash</title>
+	<script type="text/javascript" src="js/iioEngine.js"></script>
+	<script type="text/javascript" src="js/iioDebugger.js"></script>
+	<script type="text/javascript" src="js/slash.js"></script>
+	<script type="text/javascript" src="js/sprites.js"></script>
+	<script type="text/javascript" src="js/utils.js"></script>
+	<script type="text/javascript" src="js/cave.js"></script>
+	<script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+	<style>
+		body { background-color:  gray}
+		canvas {
+			position: absolute;
+			border: solid 6px white;
+			left: 50%;
+			top: 50%; 
+			margin-left: -408px;
+			margin-top: -264px;
+		}
+	</style>
+</head>
+<body>
+	<canvas id="canvas" width="816px" height="528px"></canvas>
+
+	<script type="text/javascript">
+		iio.start(Gogo, 'canvas');
+	</script>
+</body>
+</html>
