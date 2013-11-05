@@ -31,12 +31,13 @@ Gogo = function(io) {
 
 	var tilesheet;
 
-	io.activateDebugger();
+	//io.activateDebugger();
 	io.addCanvas(-50); //map layer
 
 	io.addGroup('Weapon', 1);
 	io.addGroup('Character', 1);
 	io.addGroup('Enemies', -1);
+	io.addGroup('Bars', 2);
 
 	window.addEventListener('keydown', function(event) {
 		updateInput(event, true);
@@ -96,11 +97,14 @@ Gogo = function(io) {
 					enemy.health -= (Weapon.damage - enemy.armour);
 					console.log(enemy.type+" "+enemy.uid+" hp: "+enemy.health);
 					if(enemy.health <= 0) enemy.mobDeath();
+					else {
+						enemy.healthFrame.width = enemy.health;
+					}
 				}
 			});
 
 			Weapon.lastAttack = Date.now();
-		} else console.log('cooldown');
+		}
 	});
 
 	shiftView = function(x, y) {
@@ -226,6 +230,14 @@ Gogo = function(io) {
 			sprite.idle = true;
 			sprite.startLoc = sprite.pos.clone();
 			sprite.maxHealth = sprite.health;
+			sprite.dead = false;
+			sprite.regenning = false;
+
+			if(id !== 'sword2') {
+				sprite.healthFrame = new iio.Rect(sprite.pos.x, sprite.box.top()-5, sprite.maxHealth, 10);
+				sprite.healthFrame.setFillStyle('red')
+				io.addToGroup('Bars', sprite.healthFrame);
+			}
 
 			if(callback) callback(sprite);
 		});
@@ -255,8 +267,8 @@ Gogo = function(io) {
 		grid = new iio.Grid(io.canvas.width/2-SPAWN.x, io.canvas.height/2-SPAWN.y, w, h, tw, th);
 
 		grid.setStrokeStyle('white');
-		grid.draw(io.context);
-		io.addObj(grid, TILECVS);
+		//grid.draw(io.context);
+		//io.addObj(grid, TILECVS);
 
 		tilesheet = new iio.SpriteMap('./img/'+SCALE+'/tilesheet.png', tw, th, function() {
 			Level.layers.forEach(function(layer) {
@@ -279,7 +291,7 @@ Gogo = function(io) {
 							buildSprite(entity, grid.getCellCenter(r,c).x, grid.getCellCenter(r,c).y, function(a) {
 								Enemies.push(a);
 								io.addToGroup('Enemies', a);
-								console.log("Mob", a);
+								//console.log("Mob", a);
 								a.playAnim('idle_down', IDLEY, io, false);
 							});
 						} else {
@@ -403,7 +415,24 @@ Gogo = function(io) {
 			}
 
 			enemy.lastLoc = enemy.pos.clone();
+
+			enemy.healthFrame.pos.x = enemy.pos.x;
+			enemy.healthFrame.pos.y = enemy.box.top()-3;
 		});
+
+		if(Fighting.length === 0 && !Character.regenning && Character.health < Character.maxHealth) {
+			Character.regenning = true;
+			setTimeout(function() {
+				var regen = 5;
+				if(Character.health <= Character.maxHealth - regen)
+					Character.health += regen;
+				else Character.health = Character.maxHealth;
+
+				Character.regenning = false;
+				Character.healthFrame.width = Character.health;
+				console.log(Character.health);
+			}, 1000);
+		}
 	};
 
 	move = function(mode) {
@@ -507,6 +536,7 @@ Gogo = function(io) {
 		removeObject(this.uid, Enemies);
 
 		io.rmvFromGroup('Enemies', this);
+		io.rmvFromGroup('Bars', this.healthFrame);
 
 		this.mobRespawn();
 	};
@@ -514,20 +544,6 @@ Gogo = function(io) {
 	mobRespawn = function() {
 		var self = this;
 		setTimeout(function() {
-		/*	self.health = self.maxHealth;
-			self.pos = self.startLoc.clone();
-			self.pos.add(SHIFT.x, SHIFT.y);
-			self.last = 'down';
-			self.path = null;
-			self.combat = false;
-			console.log(clone(self));
-			Enemies.push(self);
-
-			io.addToGroup('Enemies', self);
-
-			console.log(self.uid+' has respawned');
-			console.log(self); */
-
 			buildSprite(self.type, self.startLoc.x+SHIFT.x, self.startLoc.y+SHIFT.y, function(a) {
 				Enemies.push(a);
 				io.addToGroup('Enemies', a);
@@ -535,7 +551,7 @@ Gogo = function(io) {
 				a.playAnim('idle_down', IDLEY, io, false);
 				a.startLoc = self.startLoc.clone();
 			});
-		}, 3000);
+		}, 9000);
 	}
 
 	mobAttack = function() {
@@ -543,6 +559,14 @@ Gogo = function(io) {
 		this.interval = setInterval(function() {
 			Character.health -= (self.damage - Character.armour);
 			console.log('Character hp: ', Character.health);
+			if(Character.health <= 0) {
+				if(!Character.dead) {
+					Character.dead = true;
+					alert('Badluck, you died.');
+					location.reload();
+				}
+			}
+			Character.healthFrame.width = Character.health;
 		}, 1000);
 	};
 
@@ -671,15 +695,3 @@ getEntity = function(num) {
 
 	return Entities[num];
 };
-
-function clone(obj) {
-    if(obj == null || typeof(obj) != 'object')
-        return obj;    
-    var temp = new obj.constructor(); 
-    for(var key in obj)
-    	console.log(key)
-        temp[key] = clone(obj[key]);    
-    return temp;
-}
-
-
